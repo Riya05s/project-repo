@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Recipe Recommender</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: 'Poppins', sans-serif;
+      margin: 0;
+      padding: 0;
+      background: url('https://images.unsplash.com/photo-1504674900247-0877df9cc836?ixlib=rb-4.0.3&auto=format&fit=crop&w=1950&q=80') no-repeat center center fixed;
+      background-size: cover;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      backdrop-filter: blur(3px);
+    }
+
+    .container {
+      background: rgba(255, 255, 255, 0.2);
+      backdrop-filter: blur(10px);
+      border-radius: 20px;
+      padding: 30px;
+      max-width: 650px;
+      width: 100%;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+      color: #fff;
+      animation: fadeIn 0.6s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    h2 {
+      margin-bottom: 20px;
+      text-align: center;
+    }
+
+    input[type="file"] {
+      display: block;
+      margin: 15px auto;
+      padding: 8px;
+    }
+
+    button {
+      background: #ff6f61;
+      border: none;
+      color: white;
+      padding: 10px 20px;
+      font-size: 16px;
+      border-radius: 25px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.3s ease;
+      display: block;
+      margin: 0 auto;
+    }
+
+    button:hover {
+      background: #e95d51;
+    }
+
+    #loading {
+      margin-top: 20px;
+      color: #eee;
+      font-style: italic;
+      text-align: center;
+    }
+
+    .recipe {
+      background: rgba(255, 255, 255, 0.85);
+      color: #333;
+      margin: 15px 0;
+      padding: 15px 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      animation: fadeIn 0.4s ease;
+    }
+
+    .recipe h4 {
+      margin: 0 0 8px;
+      color: #d35400;
+    }
+
+    .recipe p {
+      margin: 6px 0;
+    }
+
+    .recipe a {
+      color: #2980b9;
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .recipe a:hover {
+      text-decoration: underline;
+    }
+
+    #recipes {
+      margin-top: 30px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>🍽️ AI Recipe Recommender</h2>
+    <input type="file" id="imageInput" accept="image/*" />
+    <button onclick="uploadImage()">Get Recipes</button>
+    <div id="loading" style="display:none;">🔍 Processing image, please wait...</div>
+    <div id="recipes"></div>
+  </div>
+
+  <script>
+    async function uploadImage() {
+      const input = document.getElementById('imageInput');
+      const loading = document.getElementById('loading');
+      const recipesDiv = document.getElementById('recipes');
+      recipesDiv.innerHTML = '';
+
+      if (!input.files || input.files.length === 0) {
+        alert('Please select an image.');
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('image', input.files[0]);
+      loading.style.display = 'block';
+
+      try {
+        const response = await fetch('/api/recognize-image', {
+          method: 'POST',
+          body: formData
+        });
+
+        const data = await response.json();
+        loading.style.display = 'none';
+
+        if (!data.predictedIngredients || data.predictedIngredients.length === 0) {
+          recipesDiv.innerHTML = '<p>No recognizable ingredients found.</p>';
+          return;
+        }
+
+        // Show predicted ingredients
+        recipesDiv.innerHTML = `
+          <p><strong>🔍 Predicted Ingredients:</strong> ${data.predictedIngredients.join(', ')}</p>
+        `;
+
+        // Show recipes
+        if (!data.recipes || data.recipes.length === 0) {
+          recipesDiv.innerHTML += '<p>No recipes found.</p>';
+          return;
+        }
+
+        data.recipes.forEach(recipe => {
+          const el = document.createElement('div');
+          el.className = 'recipe';
+          el.innerHTML = `
+            <h4>${recipe.title}</h4>
+            <p><strong>Used Ingredients:</strong> ${recipe.ingredients.join(', ')}</p>
+            <p><strong>Missing Ingredients:</strong> ${recipe.missingIngredients.join(', ')}</p>
+            <p><a href="${recipe.link}" target="_blank">🔗 View Full Recipe</a></p>
+          `;
+          recipesDiv.appendChild(el);
+        });
+      } catch (err) {
+        loading.style.display = 'none';
+        console.error(err);
+        alert('Error uploading image or getting recipes.');
+      }
+    }
+  </script>
+</body>
+</html>

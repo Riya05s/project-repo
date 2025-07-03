@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EcoLink</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    /* Modal styles */
+    .modal {
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: rgba(0, 0, 0, 0.5);
+    }
+
+    .modal-content {
+      background-color: #fefefe;
+      margin: 10% auto;
+      padding: 20px;
+      border-radius: 8px;
+      width: 80%;
+      max-width: 700px;
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+      font-family: Arial, sans-serif;
+    }
+
+    .close {
+      float: right;
+      font-size: 28px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .close:hover {
+      color: red;
+    }
+
+    .risk-level {
+      margin-bottom: 20px;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 15px;
+    }
+
+    .risk-level h3 {
+      margin: 0 0 8px 0;
+      color: #2c3e50;
+    }
+
+    .risk-level p.description {
+      font-style: italic;
+      margin: 0 0 8px 0;
+    }
+
+    .risk-factors ul {
+      margin: 0;
+      padding-left: 20px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>EcoLink</h1>
+    <form id="sanctuary-form">
+      <label for="sanctuary1">Sanctuary 1:</label>
+      <input type="text" id="sanctuary1" name="sanctuary1" placeholder="Enter first sanctuary name" />
+
+      <label for="sanctuary2">Sanctuary 2:</label>
+      <input type="text" id="sanctuary2" name="sanctuary2" placeholder="Enter second sanctuary name" />
+
+      <button type="button" id="getPathButton">Get Path</button>
+      <button type="button" id="visualizeButton">Visualize on Map</button>
+      <button type="button" id="infoButton">Show Risk Info</button>
+    </form>
+
+    <div id="path-output">
+      <h2>Calculated Path:</h2>
+      <textarea id="path-text" rows="6" cols="80" readonly placeholder="The path will be displayed here."></textarea>
+    </div>
+  </div>
+
+  <!-- Modal Overlay -->
+  <div id="infoModal" class="modal" style="display:none;">
+    <div class="modal-content">
+      <span id="closeModal" class="close">&times;</span>
+      <h2>Risk Levels and Environmental Factors</h2>
+      <div id="riskInfoContent"></div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      const getPathButton = document.getElementById("getPathButton");
+      const visualizeButton = document.getElementById("visualizeButton");
+      const infoButton = document.getElementById("infoButton");
+      const sanctuary1Input = document.getElementById("sanctuary1");
+      const sanctuary2Input = document.getElementById("sanctuary2");
+      const pathTextarea = document.getElementById("path-text");
+
+      const infoModal = document.getElementById("infoModal");
+      const closeModal = document.getElementById("closeModal");
+      const riskInfoContent = document.getElementById("riskInfoContent");
+
+      getPathButton.addEventListener("click", function () {
+        const sanctuary1 = sanctuary1Input.value.trim();
+        const sanctuary2 = sanctuary2Input.value.trim();
+
+        if (sanctuary1 && sanctuary2 && sanctuary1.toLowerCase() !== sanctuary2.toLowerCase()) {
+          getPathButton.disabled = true;
+          getPathButton.textContent = "Loading...";
+          fetch(
+            `/get_corridor?source=${encodeURIComponent(
+              sanctuary1
+            )}&destination=${encodeURIComponent(sanctuary2)}`
+          )
+            .then((response) => {
+              if (!response.ok) {
+                return response.json().then((err) => {
+                  throw new Error(err.error || `HTTP error! Status: ${response.status}`);
+                });
+              }
+              return response.json();
+            })
+            .then((data) => {
+              if (data && data.path) {
+                const pathString = data.path
+  .map(
+    (edge) =>
+      `${edge.source_full} -> ${edge.destination_full} | Distance: ${edge.distance} km, Risk: ${edge.risk}`
+  )
+  .join("\n");
+
+
+                const summary = `\n\nTotal Distance: ${data.total_distance} km\nTotal Risk: ${data.total_risk}`;
+                pathTextarea.value = pathString + summary;
+
+                sessionStorage.setItem("corridorData", JSON.stringify(data));
+              } else {
+                pathTextarea.value = "No path data received.";
+              }
+            })
+            .catch((error) => {
+              console.error("Error fetching corridor data:", error);
+              pathTextarea.value = error.message || "Failed to retrieve path.";
+            })
+            .finally(() => {
+              getPathButton.disabled = false;
+              getPathButton.textContent = "Get Path";
+            });
+        } else {
+          alert("Please enter two different sanctuary names.");
+          pathTextarea.value = "Invalid input: same or empty sanctuary names.";
+        }
+      });
+
+      visualizeButton.addEventListener("click", function () {
+        const sanctuary1 = sanctuary1Input.value.trim();
+        const sanctuary2 = sanctuary2Input.value.trim();
+
+        if (sanctuary1 && sanctuary2 && sanctuary1.toLowerCase() !== sanctuary2.toLowerCase()) {
+          const storedData = sessionStorage.getItem("corridorData");
+          if (storedData) {
+            window.location.href = `/map.html`;
+          } else {
+            visualizeButton.disabled = true;
+            visualizeButton.textContent = "Preparing...";
+            fetch(
+              `/get_corridor?source=${encodeURIComponent(
+                sanctuary1
+              )}&destination=${encodeURIComponent(sanctuary2)}`
+            )
+              .then((response) => {
+                if (!response.ok) {
+                  return response.json().then((err) => {
+                    throw new Error(err.error || `HTTP error! Status: ${response.status}`);
+                  });
+                }
+                return response.json();
+              })
+              .then((data) => {
+                sessionStorage.setItem("corridorData", JSON.stringify(data));
+                window.location.href = `/map.html`;
+              })
+              .catch((error) => {
+                console.error("Error fetching corridor data:", error);
+                alert(error.message || "Failed to retrieve path for visualization.");
+              })
+              .finally(() => {
+                visualizeButton.disabled = false;
+                visualizeButton.textContent = "Visualize on Map";
+              });
+          }
+        } else {
+          alert("Please enter two different sanctuary names to visualize.");
+        }
+      });
+
+      // Info button click handler
+      infoButton.addEventListener("click", () => {
+        infoButton.disabled = true;
+        infoButton.textContent = "Loading...";
+
+        fetch("/get_risk_info")
+          .then((response) => response.json())
+          .then((data) => {
+            riskInfoContent.innerHTML = "";
+
+            for (const [level, info] of Object.entries(data)) {
+              const riskDiv = document.createElement("div");
+              riskDiv.classList.add("risk-level");
+
+              const h3 = document.createElement("h3");
+              h3.textContent = `Risk Level ${level}`;
+              riskDiv.appendChild(h3);
+
+              const descP = document.createElement("p");
+              descP.classList.add("description");
+              descP.textContent = info.description;
+              riskDiv.appendChild(descP);
+
+              const factorsDiv = document.createElement("div");
+              factorsDiv.classList.add("risk-factors");
+
+              const factorsList = document.createElement("ul");
+              for (const [factor, desc] of Object.entries(info.factors)) {
+                const li = document.createElement("li");
+                li.innerHTML = `<strong>${factor}:</strong> ${desc}`;
+                factorsList.appendChild(li);
+              }
+              factorsDiv.appendChild(factorsList);
+              riskDiv.appendChild(factorsDiv);
+
+              riskInfoContent.appendChild(riskDiv);
+            }
+
+            infoModal.style.display = "block";
+          })
+          .catch((err) => {
+            riskInfoContent.innerHTML = `<p style="color:red;">Failed to load risk info: ${err.message}</p>`;
+            infoModal.style.display = "block";
+          })
+          .finally(() => {
+            infoButton.disabled = false;
+            infoButton.textContent = "Show Risk Info";
+          });
+      });
+
+      closeModal.addEventListener("click", () => {
+        infoModal.style.display = "none";
+      });
+
+      window.addEventListener("click", (event) => {
+        if (event.target === infoModal) {
+          infoModal.style.display = "none";
+        }
+      });
+    });
+  </script>
+</body>
+
+</html>
